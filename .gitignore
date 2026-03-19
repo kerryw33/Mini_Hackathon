@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.py[cod]
+*.log
+
+# macOS
+.DS_Store
+
+# Flask instance folder (sqlite DB etc.)
+instance/
+
+# Bytecode / caches
+*.egg-info/
+*.pytest_cache/
