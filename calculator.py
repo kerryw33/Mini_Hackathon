@@ -6,8 +6,7 @@ Exports:
 
 from typing import Dict
 
-from api_clients import get_exchange_rate, get_inflation_rate
-from models import SectorReturn
+from api_clients import get_inflation_rate, get_exchange_rate, get_historical_exchange_rate
 
 
 # A basic weight matrix for habit gravity. Values are 0..1 and will be scaled to 0..100.
