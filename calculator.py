@@ -3,6 +3,8 @@ calculator.py — Regret Score Calculation Engine
 Ticket 05: Computes all four Regret DNA gene scores + final Time Thief Score
 """
 
+from locale import currency
+
 from api_clients import get_inflation_rate, get_exchange_rate
 
 # ---------------------------------------------------------------------------
@@ -128,36 +130,28 @@ def calculate_habit_gravity(category: str, sub_category: str) -> float:
 # Gene 2 — Rand Betrayal Score (0–100)
 # ---------------------------------------------------------------------------
 
-def calculate_rand_betrayal(
-    currency: str,
-    amount: float,
-    exchange_rate: float,
-) -> tuple[float, str]:
-    """
-    Measures how much more you're paying in ZAR terms due to currency erosion.
-
-    Score = ((effective_ZAR_cost / original_amount) - 1) × 100, capped at 100.
-    If currency is ZAR, score = 0 (no erosion).
-
-    Returns (score, explanation).
-    """
-    currency = currency.upper()
-
+def calculate_rand_betrayal(currency, years, db_session=None):
     if currency == "ZAR":
         return 0.0, "No currency erosion — spending in ZAR."
 
-    effective_zar = amount * exchange_rate
-    erosion_ratio = (effective_zar / amount) - 1   # how many extra ZAR per unit
-    score = min(erosion_ratio * 100, 100)
+    # Rate today vs rate at start of the period
+    from datetime import date, timedelta
+    start_date = (date.today() - timedelta(days=int(years * 365))).strftime("%Y-%m-%d")
+    
+    rate_then = get_historical_exchange_rate(currency, "ZAR", start_date)
+    rate_now  = get_exchange_rate(currency, "ZAR")
+
+    # Rand weakened = rate_now > rate_then (more ZAR per 1 foreign unit)
+    erosion_pct = (rate_now - rate_then) / rate_then
+    score = min(max(erosion_pct * 100 * 5, 0), 100)  # scale: 20% erosion = 100 score
 
     explanation = (
-        f"1 {currency} = R{exchange_rate:.2f}. "
-        f"Your R{amount:.0f} {currency} spend costs R{effective_zar:.2f} in real ZAR terms — "
-        f"that's {erosion_ratio * 100:.1f}% more than face value."
+        f"When this habit started, 1 {currency} = R{rate_then:.2f}. "
+        f"Today it costs R{rate_now:.2f}. "
+        f"The Rand has weakened {erosion_pct * 100:.1f}% — "
+        f"your {currency} habit is that much more expensive in real terms."
     )
     return round(score, 2), explanation
-
-
 # ---------------------------------------------------------------------------
 # Gene 3 — Inflation Creep Score (0–100)
 # ---------------------------------------------------------------------------
@@ -284,10 +278,8 @@ def calculate_regret(entry_data: dict, db_session=None) -> dict:
     habit_gravity_score = calculate_habit_gravity(category, sub_category)
 
     # --- Gene 2: Rand Betrayal ---
-    rand_betrayal_score, rand_explanation = calculate_rand_betrayal(
-        currency, amount, exchange_rate
-    )
-
+    # Remove exchange_rate from the rand betrayal call
+    rand_betrayal_score, rand_explanation = calculate_rand_betrayal(currency, years)
     # --- Gene 3: Inflation Creep ---
     inflation_creep_score, inflation_rate, inflation_explanation = calculate_inflation_creep(years)
 
