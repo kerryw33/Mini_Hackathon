@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}Regret DNA Result{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Regret DNA</h1>
+    <p class="lead">Here’s what your spending says about your money habits.</p>
+</div>
+
+<div class="card result-card">
+    <div class="regret-tree">
+        <div class="regret-row">
+            <span class="emoji">🔥</span>
+            <span class="label">Habit Gravity</span>
+            <span class="value">{{ result.habit_gravity_score | round(1) }}</span>
+            <span class="badge {{ result.severity.habit_gravity | lower }}">{{ result.severity.habit_gravity }}</span>
+        </div>
+
+        <div class="regret-row">
+            <span class="emoji">📉</span>
+            <span class="label">Rand Betrayal</span>
+            <span class="value">{{ result.rand_betrayal_score | round(1) }}</span>
+            <span class="badge {{ result.severity.rand_betrayal | lower }}">{{ result.severity.rand_betrayal }}</span>
+        </div>
+
+        <div class="regret-row">
+            <span class="emoji">🍎</span>
+            <span class="label">Inflation Creep</span>
+            <span class="value">{{ result.inflation_creep_score | round(1) }}</span>
+            <span class="badge {{ result.severity.inflation_creep | lower }}">{{ result.severity.inflation_creep }}</span>
+        </div>
+
+        <div class="regret-row">
+            <span class="emoji">💸</span>
+            <span class="label">Opportunity Ghost</span>
+            <span class="value">{{ result.opportunity_ghost_score | round(1) }}</span>
+            <span class="badge {{ result.severity.opportunity_ghost | lower }}">{{ result.severity.opportunity_ghost }}</span>
+        </div>
+
+        <div class="regret-row final">
+            <span class="emoji">⏰</span>
+            <span class="label">Time Thief Score</span>
+            <span class="value large">{{ result.time_thief_score | round(1) }}</span>
+            <span class="suffix">/ 100</span>
+        </div>
+    </div>
+
+    <div class="result-summary">
+        <p><strong>Total spent (ZAR):</strong> {{ result.total_spent_zar | round(2) }}</p>
+        <p><strong>Ghost money not earned:</strong> {{ result.opportunity_ghost_value | round(2) }} ZAR</p>
+        <p class="note">{{ result.inflation_explanation }}</p>
+        <p class="note">{{ result.opportunity_explanation }}</p>
+    </div>
+
+    <div class="form-actions">
+        <a class="btn btn-secondary" href="/">Try Another</a>
+        <a class="btn btn-link" href="/history">View History</a>
+    </div>
+</div>
+{% endblock %}

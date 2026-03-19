@@ -1,252 +1,166 @@
+"""Core calculation engine for the Regret Simulator.
+
+Exports:
+- calculate_regret(entry_data: dict) -> dict
 """
-calculator.py — Regret Score Calculation Engine
-Ticket 05: Computes all four Regret DNA gene scores + final Time Thief Score
-"""
 
-from locale import currency
+from typing import Dict
 
-from api_clients import get_inflation_rate, get_exchange_rate
+from api_clients import get_exchange_rate, get_inflation_rate
+from models import SectorReturn
 
-# ---------------------------------------------------------------------------
-# Weight matrix — Habit Gravity
-# Maps (category, sub_category) → habit weight (0.0–1.0)
-# ---------------------------------------------------------------------------
 
+# A basic weight matrix for habit gravity. Values are 0..1 and will be scaled to 0..100.
 WEIGHT_MATRIX = {
     "need": {
-        "food":       0.20,
-        "housing":    0.30,
-        "healthcare": 0.25,
-        "transport":  0.30,
-        "education":  0.35,
+        "food": 0.35,
+        "housing": 0.25,
+        "healthcare": 0.3,
+        "transport": 0.25,
+        "education": 0.2,
     },
     "want": {
-        "clothing":      0.50,
-        "dining out":    0.55,
-        "entertainment": 0.50,
-        "technology":    0.60,
-        "travel":        0.65,
+        "clothing": 0.6,
+        "dining out": 0.7,
+        "entertainment": 0.7,
+        "technology": 0.6,
+        "travel": 0.8,
     },
     "habit": {
-        "coffee":           0.80,
-        "subscriptions":    0.75,
-        "alcohol & social": 0.85,
-        "fitness":          0.70,
-        "gaming":           0.90,
+        "coffee": 0.75,
+        "subscriptions": 0.55,
+        "alcohol & social": 0.8,
+        "fitness": 0.25,
+        "gaming": 0.6,
     },
 }
 
-# ---------------------------------------------------------------------------
-# Sector mapping — sub_category → sector name used in SectorReturn table
-# ---------------------------------------------------------------------------
-
-SECTOR_MAP = {
-    "food":             "Food & Beverage",
-    "housing":          "Real Estate",
-    "healthcare":       "Health & Pharmacy",
-    "transport":        "Transport & Fuel",
-    "education":        "Education",
-    "clothing":         "Apparel",
-    "dining out":       "Food & Beverage",
-    "entertainment":    "Streaming & Entertainment",
-    "technology":       "Technology & Electronics",
-    "travel":           "Travel & Leisure",
-    "coffee":           "Food & Beverage",
-    "subscriptions":    "Streaming & Entertainment",
+# Map sub_category to the SectorReturn sector name.
+SUBCATEGORY_TO_SECTOR = {
+    "food": "Food & Beverage",
+    "housing": "General Retail",
+    "healthcare": "Health/Pharmacy",
+    "transport": "Transport/Fuel",
+    "education": "General Retail",
+    "clothing": "Apparel/Clothing",
+    "dining out": "Food & Beverage",
+    "entertainment": "Streaming/Entertainment",
+    "technology": "Technology/Electronics",
+    "travel": "General Retail",
+    "coffee": "Coffee/Café",
+    "subscriptions": "Streaming/Entertainment",
     "alcohol & social": "Food & Beverage",
-    "fitness":          "Fitness & Health",
-    "gaming":           "Gaming",
+    "fitness": "Fitness/Gym",
+    "gaming": "Gaming",
 }
 
-# Fallback sector returns (pct as decimal) if DB lookup fails
-FALLBACK_SECTOR_RETURNS = {
-    "Food & Beverage":            0.07,
-    "Real Estate":                0.08,
-    "Health & Pharmacy":          0.08,
-    "Transport & Fuel":           0.05,
-    "Education":                  0.06,
-    "Apparel":                    0.08,
-    "Streaming & Entertainment":  0.11,
-    "Technology & Electronics":   0.14,
-    "Travel & Leisure":           0.07,
-    "Fitness & Health":           0.06,
-    "Gaming":                     0.12,
-}
 
-DEFAULT_RETURN = 0.07   # 7% fallback if sector not found at all
+def _weight_for(category: str, sub_category: str) -> float:
+    return WEIGHT_MATRIX.get(category, {}).get(sub_category, 0.3)
 
 
-# ---------------------------------------------------------------------------
-# Helper: total ZAR spent over the period
-# ---------------------------------------------------------------------------
+def _normalize_frequency(amount: float, frequency: str, years: float) -> float:
+    frequency = (frequency or "").lower().strip()
+    if frequency == "once-off":
+        return amount
 
-def _calculate_total_spent_zar(
-    amount: float,
-    currency: str,
-    frequency: str,
-    years: float,
-) -> tuple[float, float]:
+    multipliers = {"daily": 365, "weekly": 52, "monthly": 12}
+    multiplier = multipliers.get(frequency, 1)
+    return amount * multiplier * max(years, 0)
+
+
+def _severity_label(score: float) -> str:
+    if score >= 75:
+        return "SEVERE"
+    if score >= 50:
+        return "HIGH"
+    if score >= 25:
+        return "MEDIUM"
+    return "LOW"
+
+
+def calculate_regret(entry_data: Dict) -> Dict:
+    """Calculate all regret gene scores and supporting values.
+
+    Returns a dict with the same structure described in the tickets.
     """
-    Returns (total_spent_zar, exchange_rate_used).
 
-    Converts amount to ZAR using the latest exchange rate, then
-    multiplies by the number of transactions over `years`.
-    """
-    # Number of payments over the period
-    payments_per_year = {
-        "daily":    365,
-        "weekly":   52,
-        "monthly":  12,
-        "once-off": 1,
-    }
-    n_payments = payments_per_year.get(frequency.lower(), 12) * years
+    amount = float(entry_data.get("amount", 0) or 0)
+    currency = (entry_data.get("currency") or "ZAR").upper().strip()
+    frequency = (entry_data.get("frequency") or "once-off").lower().strip()
+    category = (entry_data.get("category") or "need").lower().strip()
+    sub_category = (entry_data.get("sub_category") or "").lower().strip()
+    years = float(entry_data.get("years", 1) or 1)
 
-    # Convert to ZAR
-    rate = get_exchange_rate(currency, "ZAR")
-    amount_in_zar = amount * rate
+    # Total spent in ZAR (converts currency if needed, and accounts for frequency/year)
+    exchange_rate = get_exchange_rate(currency, "ZAR")
+    total_spent_zar = _normalize_frequency(amount * exchange_rate, frequency, years)
 
-    total_zar = amount_in_zar * n_payments
-    return round(total_zar, 2), rate
+    # Habit gravity
+    habit_weight = _weight_for(category, sub_category)
+    habit_gravity_score = min(100.0, max(0.0, habit_weight * 100.0))
 
-
-# ---------------------------------------------------------------------------
-# Gene 1 — Habit Gravity Score (0–100)
-# ---------------------------------------------------------------------------
-
-def calculate_habit_gravity(category: str, sub_category: str) -> float:
-    """
-    Looks up the weight matrix and returns a score 0–100.
-    A higher score = more unconscious/compulsive spending.
-    """
-    cat = category.lower().strip()
-    sub = sub_category.lower().strip()
-
-    weight = WEIGHT_MATRIX.get(cat, {}).get(sub, 0.20)
-    score = weight * 100
-    return round(score, 2)
-
-
-# ---------------------------------------------------------------------------
-# Gene 2 — Rand Betrayal Score (0–100)
-# ---------------------------------------------------------------------------
-
-def calculate_rand_betrayal(currency, years, db_session=None):
-    if currency == "ZAR":
-        return 0.0, "No currency erosion — spending in ZAR."
-
-    # Rate today vs rate at start of the period
-    from datetime import date, timedelta
-    start_date = (date.today() - timedelta(days=int(years * 365))).strftime("%Y-%m-%d")
-    
-    rate_then = get_historical_exchange_rate(currency, "ZAR", start_date)
-    rate_now  = get_exchange_rate(currency, "ZAR")
-
-    # Rand weakened = rate_now > rate_then (more ZAR per 1 foreign unit)
-    erosion_pct = (rate_now - rate_then) / rate_then
-    score = min(max(erosion_pct * 100 * 5, 0), 100)  # scale: 20% erosion = 100 score
-
-    explanation = (
-        f"When this habit started, 1 {currency} = R{rate_then:.2f}. "
-        f"Today it costs R{rate_now:.2f}. "
-        f"The Rand has weakened {erosion_pct * 100:.1f}% — "
-        f"your {currency} habit is that much more expensive in real terms."
-    )
-    return round(score, 2), explanation
-# ---------------------------------------------------------------------------
-# Gene 3 — Inflation Creep Score (0–100)
-# ---------------------------------------------------------------------------
-
-def calculate_inflation_creep(years: float) -> tuple[float, float, str]:
-    """
-    Uses the World Bank API to get SA's inflation rate.
-    Score = inflation_rate × years × 100, capped at 100.
-
-    Returns (score, inflation_rate, explanation).
-    """
-    inflation_rate = get_inflation_rate("ZAF")
-    score = min(inflation_rate * years * 100, 100)
-
-    explanation = (
-        f"At SA's inflation rate of {inflation_rate * 100:.1f}%, "
-        f"over {years:.0f} year(s) your purchasing power shrinks by "
-        f"{inflation_rate * years * 100:.1f}%. "
-        f"What costs R100 today will cost R{100 * (1 + inflation_rate) ** years:.0f} then."
-    )
-    return round(score, 2), inflation_rate, explanation
-
-
-# ---------------------------------------------------------------------------
-# Gene 4 — Opportunity Ghost Score (0–100)
-# ---------------------------------------------------------------------------
-
-def calculate_opportunity_ghost(
-    total_spent_zar: float,
-    sub_category: str,
-    years: float,
-    frequency: str,
-    db_session=None,
-) -> tuple[float, float, str]:
-    """
-    Calculates the compound investment value of the money spent.
-    Score = ((opportunity_value / total_spent) - 1) × 100, capped at 100.
-
-    Returns (score, opportunity_value_zar, explanation).
-
-    If db_session is provided, attempts a SectorReturn DB lookup first.
-    Falls back to FALLBACK_SECTOR_RETURNS dict.
-    """
-    sub = sub_category.lower().strip()
-    sector = SECTOR_MAP.get(sub, "Food & Beverage")
-
-    # Try DB lookup first
-    annual_return = None
-    if db_session is not None:
+    # Rand betrayal
+    rand_betrayal_score = 0.0
+    if currency != "ZAR" and amount > 0:
+        # (effective_ZAR / original_amount) - 1
         try:
-            from models import SectorReturn
-            record = db_session.query(SectorReturn).filter_by(sector=sector).first()
-            if record:
-                annual_return = record.annual_return_pct / 100
-        except Exception as e:
-            print(f"[calculator] DB sector lookup failed: {e}")
+            rand_betrayal_score = (exchange_rate - 1.0) * 100.0
+        except Exception:
+            rand_betrayal_score = 0.0
+        rand_betrayal_score = min(100.0, max(0.0, rand_betrayal_score))
 
-    # Fall back to in-memory dict
-    if annual_return is None:
-        annual_return = FALLBACK_SECTOR_RETURNS.get(sector, DEFAULT_RETURN)
+    # Inflation creep
+    inflation_rate = get_inflation_rate("ZAF")
+    inflation_creep_score = min(100.0, max(0.0, inflation_rate * years * 100.0))
 
-    # Compound growth: monthly contributions over `years`
-    # FV = PMT × [((1 + r/n)^(n×t) − 1) / (r/n)]
-    payments_per_year = {
-        "daily":    365,
-        "weekly":   52,
-        "monthly":  12,
-        "once-off": 1,
-    }
-    n = payments_per_year.get(frequency.lower(), 12)   # compounding periods/year
-    r = annual_return
-    t = years
+    # Opportunity ghost
+    sector_name = SUBCATEGORY_TO_SECTOR.get(sub_category, "General Retail")
+    sector = SectorReturn.query.filter_by(sector_name=sector_name).one_or_none()
+    annual_return_pct = sector.annual_return_pct if sector else 7.0
+    annual_return = annual_return_pct / 100.0
 
-    if frequency.lower() == "once-off":
-        # Lump-sum compound growth
-        opportunity_value = total_spent_zar * (1 + r) ** t
+    if total_spent_zar <= 0 or years <= 0:
+        opportunity_value = total_spent_zar
     else:
-        pmt = total_spent_zar / (n * t)    # payment per period
-        opportunity_value = pmt * (((1 + r / n) ** (n * t) - 1) / (r / n))
+        opportunity_value = total_spent_zar * ((1 + annual_return) ** years)
 
-    ghost_money = opportunity_value - total_spent_zar
-    score = min(((opportunity_value / total_spent_zar) - 1) * 100, 100)
+    opportunity_ghost_score = 0.0
+    if total_spent_zar > 0:
+        opportunity_ghost_score = (opportunity_value / total_spent_zar - 1.0) * 100.0
+        opportunity_ghost_score = min(100.0, max(0.0, opportunity_ghost_score))
 
-    explanation = (
-        f"Invested in the {sector} sector (avg {annual_return * 100:.0f}%/yr), "
-        f"R{total_spent_zar:,.0f} could have grown to R{opportunity_value:,.0f} "
-        f"over {years:.0f} year(s). "
-        f"That's R{ghost_money:,.0f} in ghost money you never earned."
+    opportunity_ghost_value = max(0.0, opportunity_value - total_spent_zar)
+
+    inflation_explanation = (
+        f"At {inflation_rate*100:.1f}% inflation, your money loses purchasing power over {years:.1f} year(s)."
     )
-    return round(score, 2), round(opportunity_value, 2), explanation
 
+    opportunity_explanation = (
+        f"If you had invested your total spend in {sector_name} (≈{annual_return_pct:.1f}% p.a.), it could have grown to {opportunity_value:,.2f} ZAR in {years:.1f} year(s)."
+    )
 
-# ---------------------------------------------------------------------------
-# Master function — calculate_regret()
-# ---------------------------------------------------------------------------
+    time_thief_score = (
+        habit_gravity_score + rand_betrayal_score + inflation_creep_score + opportunity_ghost_score
+    ) / 4.0
+
+    return {
+        "total_spent_zar": total_spent_zar,
+        "habit_gravity_score": habit_gravity_score,
+        "rand_betrayal_score": rand_betrayal_score,
+        "inflation_creep_score": inflation_creep_score,
+        "opportunity_ghost_score": opportunity_ghost_score,
+        "time_thief_score": time_thief_score,
+        "opportunity_ghost_value": opportunity_ghost_value,
+        "inflation_explanation": inflation_explanation,
+        "opportunity_explanation": opportunity_explanation,
+        "severity": {
+            "habit_gravity": _severity_label(habit_gravity_score),
+            "rand_betrayal": _severity_label(rand_betrayal_score),
+            "inflation_creep": _severity_label(inflation_creep_score),
+            "opportunity_ghost": _severity_label(opportunity_ghost_score),
+        },
+    }
 
 def calculate_regret(entry_data: dict, db_session=None) -> dict:
     """

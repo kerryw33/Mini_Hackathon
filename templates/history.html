@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}History — Regret Simulator{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>History</h1>
+    <p class="lead">Your past regret calculations.</p>
+</div>
+
+{% if entries %}
+<table class="history-table">
+    <thead>
+        <tr>
+            <th>When</th>
+            <th>Description</th>
+            <th>Amount</th>
+            <th>Frequency</th>
+            <th>Category</th>
+            <th>Time Thief</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for entry in entries %}
+        <tr>
+            <td>{{ entry.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+            <td>{{ entry.description }}</td>
+            <td>{{ entry.amount | round(2) }} {{ entry.currency }}</td>
+            <td>{{ entry.frequency }}</td>
+            <td>{{ entry.category }}</td>
+            <td><span class="badge {{ entry.time_thief_badge | lower }}">{{ entry.time_thief_badge }}</span> {{ entry.time_thief_score | round(1) }}</td>
+            <td><a class="link" href="/result/{{ entry.id }}">View</a></td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p>No history yet. Try making a calculation first.</p>
+{% endif %}
+{% endblock %}

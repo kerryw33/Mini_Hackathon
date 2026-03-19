@@ -3,6 +3,83 @@
 {% block title %}Financial Regret Simulator{% endblock %}
 
 {% block content %}
-<h1>Coming soon</h1>
-<p>The Financial Regret Simulator is under construction.</p>
+<div class="page-header">
+    <h1>Financial Regret Simulator</h1>
+    <p class="lead">Tell us what you spend, and we'll show you the regret DNA.</p>
+</div>
+
+{% with messages = get_flashed_messages() %}
+  {% if messages %}
+    <div class="flash">
+      {% for msg in messages %}
+        <div class="flash-item">{{ msg }}</div>
+      {% endfor %}
+    </div>
+  {% endif %}
+{% endwith %}
+
+<form class="card form" action="/calculate" method="post">
+    <div class="form-row">
+        <label for="description">What did you buy?</label>
+        <input id="description" name="description" type="text" required maxlength="128" placeholder="e.g. weekly coffee" />
+    </div>
+
+    <div class="form-row">
+        <label for="amount">Amount</label>
+        <input id="amount" name="amount" type="number" step="0.01" min="0" required placeholder="e.g. 30" />
+    </div>
+
+    <div class="form-row grid-2">
+        <div>
+            <label for="currency">Currency</label>
+            <select id="currency" name="currency" required>
+                <option value="ZAR" selected>ZAR</option>
+                <option value="USD">USD</option>
+                <option value="GBP">GBP</option>
+                <option value="EUR">EUR</option>
+                <option value="AUD">AUD</option>
+            </select>
+        </div>
+        <div>
+            <label for="frequency">Frequency</label>
+            <select id="frequency" name="frequency" required>
+                <option value="once-off">Once-off</option>
+                <option value="daily">Daily</option>
+                <option value="weekly" selected>Weekly</option>
+                <option value="monthly">Monthly</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="form-row grid-2">
+        <div>
+            <label for="category">Category</label>
+            <select id="category" name="category" required>
+                <option value="need" selected>Need</option>
+                <option value="want">Want</option>
+                <option value="habit">Habit</option>
+            </select>
+        </div>
+        <div>
+            <label for="sub_category">Sub-category</label>
+            <select id="sub_category" name="sub_category" required>
+                <!-- Populated by JS -->
+            </select>
+        </div>
+    </div>
+
+    <div class="form-row">
+        <label for="sub_sub_category">Sub‑sub‑category (optional)</label>
+        <input id="sub_sub_category" name="sub_sub_category" type="text" placeholder="e.g. cappuccino, Netflix" />
+    </div>
+
+    <div class="form-row">
+        <label for="years">Years to project</label>
+        <input id="years" name="years" type="number" step="0.1" min="0.1" value="1" required />
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Calculate My Regret</button>
+    </div>
+</form>
 {% endblock %}

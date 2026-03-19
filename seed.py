@@ -1,9 +1,9 @@
-"""Seed the database with a base set of sector return data.
+"""Seed the database with a baseline set of sector return data.
 
 Run:
     python seed.py
 
-This script is idempotent: re-running it will not create duplicate sector records.
+This script is idempotent: re-running it will not create duplicates.
 """
 
 from app import create_app
@@ -77,18 +77,15 @@ SECTOR_DATA = [
 def seed():
     app = create_app()
     with app.app_context():
-        for entry in SECTOR_DATA:
-            sector = (
-                SectorReturn.query.filter_by(sector_name=entry["sector_name"]).one_or_none()
-            )
-            if sector is None:
-                sector = SectorReturn(**entry)
-                db.session.add(sector)
+        for data in SECTOR_DATA:
+            record = SectorReturn.query.filter_by(sector_name=data["sector_name"]).one_or_none()
+            if record is None:
+                record = SectorReturn(**data)
+                db.session.add(record)
             else:
-                # Update existing record if data has changed
-                sector.annual_return_pct = entry["annual_return_pct"]
-                sector.example_stock = entry["example_stock"]
-                sector.keywords = entry["keywords"]
+                record.annual_return_pct = data["annual_return_pct"]
+                record.example_stock = data["example_stock"]
+                record.keywords = data["keywords"]
         db.session.commit()
 
     print(f"Seeded {len(SECTOR_DATA)} sectors into sector_return table.")
