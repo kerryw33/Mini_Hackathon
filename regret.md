@@ -39,32 +39,9 @@ Output Insight:
 ## Regret Categories
 Each team must pick **one category of regret** to focus on:
 
-### Opportunity Cost Regret
-- What could have been earned if the money was invested instead?
-- Crypto Alternative, Stock Market Investment, Compound Interest
-
 ### Time Regret
 - How does this cost grow over time?
 - Subscription traps, daily spending accumulation, long-term habit cost
-
-### Inflation Regret
-- How much purchasing power is lost due to inflation?
-- Inflation-adjusted value of money, future cost of current purchases
-
-
-### Volatility Regret
-- What is the risk hidden in this financial decision?
-- Crypto volatility, stock market risk, currency exchange risk
-
-
-### Global Regret
-- How does this financial decision compare globally?
-- Currency loss, global cost comparison, international purchasing power
-
-## Financial Behaviour Regret
-- What does this purchase say about your financial habits?
-- Impulse purchase detector, luxury vs necessity analysis, financial health score
-
 
 ## Required Feature: Financial Regret Score
 - A score from 0 to 100 that quantifies the level of regret associated with the financial decision.
