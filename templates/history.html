@@ -9,6 +9,109 @@
 </div>
 
 {% if entries %}
+<div class="charts-grid" style="margin-bottom: 2rem;">
+    <div class="chart-card">
+        <h3>Time Thief Scores (recent)</h3>
+        <div class="chart-wrapper">
+            <canvas id="scoresChart"></canvas>
+        </div>
+    </div>
+    <div class="chart-card">
+        <h3>Spending by Category</h3>
+        <div class="chart-wrapper">
+            <canvas id="categoryChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+    Chart.defaults.color = 'rgba(200, 175, 255, 0.65)';
+    Chart.defaults.borderColor = 'rgba(160, 90, 255, 0.15)';
+
+    // Time Thief bar chart – last 15 entries, reversed to chronological order
+    const rawLabels = [{% for e in entries[:15] %}"{{ e.description | truncate(16, true, '…') }}"{% if not loop.last %},{% endif %}{% endfor %}];
+    const rawScores = [{% for e in entries[:15] %}{{ e.time_thief_score }}{% if not loop.last %},{% endif %}{% endfor %}];
+    const labels = rawLabels.slice().reverse();
+    const scores = rawScores.slice().reverse();
+
+    const barColors = scores.map(s =>
+        s >= 75 ? 'rgba(248, 113, 113, 0.7)' :
+        s >= 50 ? 'rgba(251, 146, 60, 0.7)' :
+        s >= 25 ? 'rgba(212, 175, 55, 0.7)' :
+                  'rgba(52, 211, 153, 0.7)'
+    );
+    const barBorders = scores.map(s =>
+        s >= 75 ? 'rgba(248, 113, 113, 1)' :
+        s >= 50 ? 'rgba(251, 146, 60, 1)' :
+        s >= 25 ? 'rgba(212, 175, 55, 1)' :
+                  'rgba(52, 211, 153, 1)'
+    );
+
+    new Chart(document.getElementById('scoresChart'), {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [{
+                data: scores,
+                backgroundColor: barColors,
+                borderColor: barBorders,
+                borderWidth: 2,
+                borderRadius: 5,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: {
+                    min: 0, max: 100,
+                    grid: { color: 'rgba(160, 90, 255, 0.12)' },
+                    ticks: { font: { size: 10 } },
+                },
+                x: {
+                    grid: { display: false },
+                    ticks: { font: { size: 9 }, maxRotation: 40 },
+                }
+            }
+        }
+    });
+
+    // Category donut
+    const catData = {{ category_counts | tojson }};
+    const catLabels = Object.keys(catData);
+    const catValues = Object.values(catData);
+    const palette = ['rgba(168, 85, 247, 0.8)', 'rgba(212, 175, 55, 0.8)', 'rgba(52, 211, 153, 0.8)', 'rgba(251, 146, 60, 0.8)', 'rgba(96, 165, 250, 0.8)'];
+
+    new Chart(document.getElementById('categoryChart'), {
+        type: 'doughnut',
+        data: {
+            labels: catLabels,
+            datasets: [{
+                data: catValues,
+                backgroundColor: palette.slice(0, catLabels.length),
+                borderColor: 'rgba(9, 5, 26, 0.8)',
+                borderWidth: 2,
+                hoverOffset: 6,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '60%',
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: { font: { size: 11 }, padding: 12, boxWidth: 12 },
+                }
+            }
+        }
+    });
+})();
+</script>
+
 <table class="history-table">
     <thead>
         <tr>

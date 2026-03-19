@@ -1,4 +1,5 @@
 import os
+from collections import Counter
 
 from flask import Flask, render_template, request, redirect, url_for, flash, abort
 
@@ -128,7 +129,8 @@ def create_app():
                     "created_at": entry.created_at,
                 }
             )
-        return render_template("history.html", entries=enriched)
+        category_counts = dict(Counter(e["category"] for e in enriched))
+        return render_template("history.html", entries=enriched, category_counts=category_counts)
 
     return app
 

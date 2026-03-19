@@ -53,9 +53,113 @@
         <p class="note">{{ result.opportunity_explanation }}</p>
     </div>
 
+    <div class="charts-grid">
+        <div class="chart-card">
+            <h3>Regret DNA Profile</h3>
+            <div class="chart-wrapper">
+                <canvas id="radarChart"></canvas>
+            </div>
+        </div>
+        <div class="chart-card">
+            <h3>Ghost Money vs Spent</h3>
+            <div class="chart-wrapper">
+                <canvas id="compChart"></canvas>
+            </div>
+        </div>
+    </div>
+
     <div class="form-actions">
         <a class="btn btn-secondary" href="/">Try Another</a>
         <a class="btn btn-link" href="/history">View History</a>
     </div>
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+    const r = {{ result | tojson }};
+
+    Chart.defaults.color = 'rgba(200, 175, 255, 0.65)';
+    Chart.defaults.borderColor = 'rgba(160, 90, 255, 0.15)';
+
+    // Radar – 4 gene scores
+    new Chart(document.getElementById('radarChart'), {
+        type: 'radar',
+        data: {
+            labels: ['🔥 Habit Gravity', '📉 Rand Betrayal', '🍎 Inflation Creep', '💸 Opp. Ghost'],
+            datasets: [{
+                data: [
+                    r.habit_gravity_score,
+                    r.rand_betrayal_score,
+                    r.inflation_creep_score,
+                    r.opportunity_ghost_score
+                ],
+                backgroundColor: 'rgba(168, 85, 247, 0.2)',
+                borderColor: 'rgba(168, 85, 247, 0.9)',
+                borderWidth: 2,
+                pointBackgroundColor: '#d4af37',
+                pointBorderColor: '#d4af37',
+                pointRadius: 4,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                r: {
+                    min: 0,
+                    max: 100,
+                    ticks: {
+                        stepSize: 25,
+                        backdropColor: 'transparent',
+                        font: { size: 9 },
+                    },
+                    grid: { color: 'rgba(160, 90, 255, 0.18)' },
+                    angleLines: { color: 'rgba(160, 90, 255, 0.18)' },
+                    pointLabels: { font: { size: 10 }, color: 'rgba(200, 175, 255, 0.75)' },
+                }
+            }
+        }
+    });
+
+    // Horizontal bar – spent vs ghost value
+    new Chart(document.getElementById('compChart'), {
+        type: 'bar',
+        data: {
+            labels: ['Total Spent', 'Could Have Grown To'],
+            datasets: [{
+                data: [r.total_spent_zar, r.opportunity_ghost_value],
+                backgroundColor: ['rgba(168, 85, 247, 0.55)', 'rgba(212, 175, 55, 0.55)'],
+                borderColor: ['rgba(168, 85, 247, 1)', 'rgba(212, 175, 55, 1)'],
+                borderWidth: 2,
+                borderRadius: 6,
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => ' R ' + ctx.parsed.x.toLocaleString('en-ZA', { minimumFractionDigits: 2 })
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    grid: { color: 'rgba(160, 90, 255, 0.12)' },
+                    ticks: {
+                        callback: v => 'R ' + (v >= 1000 ? (v / 1000).toFixed(0) + 'k' : v),
+                        font: { size: 10 },
+                    }
+                },
+                y: { grid: { display: false } }
+            }
+        }
+    });
+})();
+</script>
 {% endblock %}
